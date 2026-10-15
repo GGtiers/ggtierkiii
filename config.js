@@ -126,6 +126,11 @@ const GGtiersConfig = {
             name: "Podziemia",
             icon: "images/Podziemia.png"
         },
+                {
+            id: "Speed",
+            name: "Speed",
+            icon: "images/Speed.png"
+        },
           {
             id: "SMP",
             name: "SMP",
