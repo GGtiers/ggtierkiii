@@ -7,6 +7,114 @@
 // RENDEROWANIE IKON
 // ========================================
 
+// Ikona zastępcza, gdy tryb nie ma pliku z obrazkiem
+const DEFAULT_MODE_ICON = "🎮";
+
+
+// ========================================
+// AUTOMATYCZNE DODAWANIE NOWYCH TRYBÓW
+// ========================================
+// Tryby z config.json bota, których nie ma w config.js strony,
+// są dodawane na koniec listy. Ikona: images/<id>.png
+// (jeśli pliku nie ma - pokaże się 🎮).
+
+function addModeIfMissing(id, name, icon) {
+
+    if (!id) {
+        return;
+    }
+
+    const exists = GGtiersConfig.modes.some(
+        mode =>
+            String(mode.id).toLowerCase() ===
+            String(id).toLowerCase()
+    );
+
+    if (exists) {
+        return;
+    }
+
+    GGtiersConfig.modes.push({
+        id: String(id),
+        name: String(name || id),
+        icon:
+            typeof icon === "string" && icon
+                ? icon
+                : `images/${id}.png`
+    });
+
+}
+
+
+async function syncModesFromBot() {
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/api/config`
+        );
+
+        if (!response.ok) {
+            return;
+        }
+
+        const botConfig = await response.json();
+
+        (botConfig.modes || []).forEach(mode => {
+            addModeIfMissing(
+                mode.id,
+                mode.name,
+                mode.icon
+            );
+        });
+
+    } catch (error) {
+
+        console.warn(
+            "Nie udało się pobrać trybów z bota:",
+            error
+        );
+
+    }
+
+}
+
+
+// Tiery gracza dla wszystkich trybów ze strony:
+// najpierw nowe pole "tiers" z bota, potem stare pola (sword, crystal...)
+function readPlayerTiers(apiPlayer) {
+
+    const fromApi =
+        apiPlayer.tiers &&
+        typeof apiPlayer.tiers === "object"
+            ? apiPlayer.tiers
+            : {};
+
+    const tiers = {};
+
+    GGtiersConfig.modes.forEach(mode => {
+
+        const key = String(mode.id);
+
+        const lowerKey = key.toLowerCase();
+
+        const match = Object.keys(fromApi).find(
+            apiKey => apiKey.toLowerCase() === lowerKey
+        );
+
+        tiers[key] =
+            (match !== undefined ? fromApi[match] : null) ??
+            apiPlayer[lowerKey] ??
+            apiPlayer[key] ??
+            null;
+
+    });
+
+    return tiers;
+
+}
+
+
 function renderModeIcon(icon) {
 
     if (
@@ -25,6 +133,7 @@ function renderModeIcon(icon) {
                 src="${icon}"
                 class="mode-icon-image"
                 alt=""
+                onerror="this.onerror=null;this.replaceWith(document.createTextNode('${DEFAULT_MODE_ICON}'))"
             >
         `;
 
@@ -64,6 +173,9 @@ async function loadPlayers() {
 
         const data =
             await response.json();
+
+
+        await syncModesFromBot();
 
 
         players = data.map(player => {
@@ -167,51 +279,8 @@ minecraftUsername:
                     false,
 
 
-                tiers: {
-
-                    Sword:
-                        player.sword ??
-                        null,
-
-                    Crystal:
-                        player.crystal ??
-                        null,
-
-                    NPot:
-                        player.npot ??
-                        null,
-
-                    Axe:
-                        player.axe ??
-                        null,
-
-                    Mace:
-                        player.mace ??
-                        null,
-
-                    UHC:
-                        player.uhc ??
-                        null,
-
-                    Gildie:
-                        player.gildie ??
-                        null,
-
-                    Dpot:
-                        player.dpot ??
-                        player.Dpot ??
-                        null,
-
-
-                    Podziemia:
-                        player.podziemia ??
-                        null,
-
-                    SMP:
-                        player.smp ??
-                        null
-
-                }
+                tiers:
+                    readPlayerTiers(player)
 
             };
 
@@ -521,6 +590,7 @@ function renderBigIcon(icon, className) {
                 src="${icon}"
                 class="${className}"
                 alt=""
+                onerror="this.onerror=null;this.outerHTML='<span class=\\'${className}-emoji\\'>${DEFAULT_MODE_ICON}</span>'"
             >
         `;
 
